@@ -37,6 +37,7 @@ FLOWS = [
     "axis",
     "azure_devops",
     "balboa",
+    "barry",
     "blebox",
     "blink",
     "bmw_connected_drive",
