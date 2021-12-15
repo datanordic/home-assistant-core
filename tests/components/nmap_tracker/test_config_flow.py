@@ -3,10 +3,10 @@ from unittest.mock import patch
 
 import pytest
 
-from homeassistant import config_entries, data_entry_flow, setup
+from homeassistant import config_entries, data_entry_flow
 from homeassistant.components.device_tracker.const import (
+    CONF_CONSIDER_HOME,
     CONF_SCAN_INTERVAL,
-    CONF_TRACK_NEW,
 )
 from homeassistant.components.nmap_tracker.const import (
     CONF_HOME_INTERVAL,
@@ -23,9 +23,9 @@ from tests.common import MockConfigEntry
 @pytest.mark.parametrize(
     "hosts", ["1.1.1.1", "192.168.1.0/24", "192.168.1.0/24,192.168.2.0/24"]
 )
-async def test_form(hass: HomeAssistant, hosts: str) -> None:
+async def test_form(hass: HomeAssistant, hosts: str, mock_get_source_ip) -> None:
     """Test we get the form."""
-    await setup.async_setup_component(hass, "persistent_notification", {})
+
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -33,7 +33,6 @@ async def test_form(hass: HomeAssistant, hosts: str) -> None:
     assert result["errors"] == {}
 
     schema_defaults = result["data_schema"]({})
-    assert CONF_TRACK_NEW not in schema_defaults
     assert CONF_SCAN_INTERVAL not in schema_defaults
 
     with patch(
@@ -63,9 +62,9 @@ async def test_form(hass: HomeAssistant, hosts: str) -> None:
     assert len(mock_setup_entry.mock_calls) == 1
 
 
-async def test_form_range(hass: HomeAssistant) -> None:
+async def test_form_range(hass: HomeAssistant, mock_get_source_ip) -> None:
     """Test we get the form and can take an ip range."""
-    await setup.async_setup_component(hass, "persistent_notification", {})
+
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -99,9 +98,9 @@ async def test_form_range(hass: HomeAssistant) -> None:
     assert len(mock_setup_entry.mock_calls) == 1
 
 
-async def test_form_invalid_hosts(hass: HomeAssistant) -> None:
+async def test_form_invalid_hosts(hass: HomeAssistant, mock_get_source_ip) -> None:
     """Test invalid hosts passed in."""
-    await setup.async_setup_component(hass, "persistent_notification", {})
+
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -123,9 +122,9 @@ async def test_form_invalid_hosts(hass: HomeAssistant) -> None:
     assert result2["errors"] == {CONF_HOSTS: "invalid_hosts"}
 
 
-async def test_form_already_configured(hass: HomeAssistant) -> None:
+async def test_form_already_configured(hass: HomeAssistant, mock_get_source_ip) -> None:
     """Test duplicate host list."""
-    await setup.async_setup_component(hass, "persistent_notification", {})
+
     config_entry = MockConfigEntry(
         domain=DOMAIN,
         data={},
@@ -158,9 +157,9 @@ async def test_form_already_configured(hass: HomeAssistant) -> None:
     assert result2["reason"] == "already_configured"
 
 
-async def test_form_invalid_excludes(hass: HomeAssistant) -> None:
+async def test_form_invalid_excludes(hass: HomeAssistant, mock_get_source_ip) -> None:
     """Test invalid excludes passed in."""
-    await setup.async_setup_component(hass, "persistent_notification", {})
+
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -182,7 +181,7 @@ async def test_form_invalid_excludes(hass: HomeAssistant) -> None:
     assert result2["errors"] == {CONF_EXCLUDE: "invalid_hosts"}
 
 
-async def test_options_flow(hass: HomeAssistant) -> None:
+async def test_options_flow(hass: HomeAssistant, mock_get_source_ip) -> None:
     """Test we can edit options."""
 
     config_entry = MockConfigEntry(
@@ -210,9 +209,9 @@ async def test_options_flow(hass: HomeAssistant) -> None:
         CONF_EXCLUDE: "4.4.4.4",
         CONF_HOME_INTERVAL: 3,
         CONF_HOSTS: "192.168.1.0/24",
+        CONF_CONSIDER_HOME: 180,
         CONF_SCAN_INTERVAL: 120,
-        CONF_OPTIONS: "-F --host-timeout 5s",
-        CONF_TRACK_NEW: True,
+        CONF_OPTIONS: "-F -T4 --min-rate 10 --host-timeout 5s",
     }
 
     with patch(
@@ -224,10 +223,10 @@ async def test_options_flow(hass: HomeAssistant) -> None:
             user_input={
                 CONF_HOSTS: "192.168.1.0/24, 192.168.2.0/24",
                 CONF_HOME_INTERVAL: 5,
+                CONF_CONSIDER_HOME: 500,
                 CONF_OPTIONS: "-sn",
                 CONF_EXCLUDE: "4.4.4.4, 5.5.5.5",
                 CONF_SCAN_INTERVAL: 10,
-                CONF_TRACK_NEW: False,
             },
         )
         await hass.async_block_till_done()
@@ -236,17 +235,17 @@ async def test_options_flow(hass: HomeAssistant) -> None:
     assert config_entry.options == {
         CONF_HOSTS: "192.168.1.0/24,192.168.2.0/24",
         CONF_HOME_INTERVAL: 5,
+        CONF_CONSIDER_HOME: 500,
         CONF_OPTIONS: "-sn",
         CONF_EXCLUDE: "4.4.4.4,5.5.5.5",
         CONF_SCAN_INTERVAL: 10,
-        CONF_TRACK_NEW: False,
     }
     assert len(mock_setup_entry.mock_calls) == 1
 
 
-async def test_import(hass: HomeAssistant) -> None:
+async def test_import(hass: HomeAssistant, mock_get_source_ip) -> None:
     """Test we can import from yaml."""
-    await setup.async_setup_component(hass, "persistent_notification", {})
+
     with patch(
         "homeassistant.components.nmap_tracker.async_setup_entry",
         return_value=True,
@@ -257,10 +256,10 @@ async def test_import(hass: HomeAssistant) -> None:
             data={
                 CONF_HOSTS: "1.2.3.4/20",
                 CONF_HOME_INTERVAL: 3,
+                CONF_CONSIDER_HOME: 500,
                 CONF_OPTIONS: DEFAULT_OPTIONS,
                 CONF_EXCLUDE: "4.4.4.4, 6.4.3.2",
                 CONF_SCAN_INTERVAL: 2000,
-                CONF_TRACK_NEW: False,
             },
         )
         await hass.async_block_till_done()
@@ -271,15 +270,17 @@ async def test_import(hass: HomeAssistant) -> None:
     assert result["options"] == {
         CONF_HOSTS: "1.2.3.4/20",
         CONF_HOME_INTERVAL: 3,
+        CONF_CONSIDER_HOME: 500,
         CONF_OPTIONS: DEFAULT_OPTIONS,
         CONF_EXCLUDE: "4.4.4.4,6.4.3.2",
         CONF_SCAN_INTERVAL: 2000,
-        CONF_TRACK_NEW: False,
     }
     assert len(mock_setup_entry.mock_calls) == 1
 
 
-async def test_import_aborts_if_matching(hass: HomeAssistant) -> None:
+async def test_import_aborts_if_matching(
+    hass: HomeAssistant, mock_get_source_ip
+) -> None:
     """Test we can import from yaml."""
     config_entry = MockConfigEntry(
         domain=DOMAIN,
@@ -292,7 +293,6 @@ async def test_import_aborts_if_matching(hass: HomeAssistant) -> None:
         },
     )
     config_entry.add_to_hass(hass)
-    await setup.async_setup_component(hass, "persistent_notification", {})
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN,

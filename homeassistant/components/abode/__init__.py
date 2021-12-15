@@ -8,7 +8,6 @@ from requests.exceptions import ConnectTimeout, HTTPError
 import voluptuous as vol
 
 from homeassistant.const import (
-    ATTR_ATTRIBUTION,
     ATTR_DATE,
     ATTR_DEVICE_ID,
     ATTR_ENTITY_ID,
@@ -16,11 +15,12 @@ from homeassistant.const import (
     CONF_PASSWORD,
     CONF_USERNAME,
     EVENT_HOMEASSISTANT_STOP,
+    Platform,
 )
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import dispatcher_send
-from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity import DeviceInfo, Entity
 
 from .const import ATTRIBUTION, DEFAULT_CACHEDB, DOMAIN, LOGGER
 
@@ -53,14 +53,14 @@ CAPTURE_IMAGE_SCHEMA = vol.Schema({ATTR_ENTITY_ID: cv.entity_ids})
 AUTOMATION_SCHEMA = vol.Schema({ATTR_ENTITY_ID: cv.entity_ids})
 
 PLATFORMS = [
-    "alarm_control_panel",
-    "binary_sensor",
-    "lock",
-    "switch",
-    "cover",
-    "camera",
-    "light",
-    "sensor",
+    Platform.ALARM_CONTROL_PANEL,
+    Platform.BINARY_SENSOR,
+    Platform.LOCK,
+    Platform.SWITCH,
+    Platform.COVER,
+    Platform.CAMERA,
+    Platform.LIGHT,
+    Platform.SENSOR,
 ]
 
 
@@ -247,20 +247,12 @@ def setup_abode_events(hass):
 class AbodeEntity(Entity):
     """Representation of an Abode entity."""
 
+    _attr_attribution = ATTRIBUTION
+
     def __init__(self, data):
         """Initialize Abode entity."""
         self._data = data
-        self._available = True
-
-    @property
-    def available(self):
-        """Return the available state."""
-        return self._available
-
-    @property
-    def should_poll(self):
-        """Return the polling state."""
-        return self._data.polling
+        self._attr_should_poll = data.polling
 
     async def async_added_to_hass(self):
         """Subscribe to Abode connection status updates."""
@@ -280,7 +272,7 @@ class AbodeEntity(Entity):
 
     def _update_connection_status(self):
         """Update the entity available property."""
-        self._available = self._data.abode.events.connected
+        self._attr_available = self._data.abode.events.connected
         self.schedule_update_ha_state()
 
 
@@ -291,6 +283,8 @@ class AbodeDevice(AbodeEntity):
         """Initialize Abode device."""
         super().__init__(data)
         self._device = device
+        self._attr_name = device.name
+        self._attr_unique_id = device.device_uuid
 
     async def async_added_to_hass(self):
         """Subscribe to device events."""
@@ -313,15 +307,9 @@ class AbodeDevice(AbodeEntity):
         self._device.refresh()
 
     @property
-    def name(self):
-        """Return the name of the device."""
-        return self._device.name
-
-    @property
     def extra_state_attributes(self):
         """Return the state attributes."""
         return {
-            ATTR_ATTRIBUTION: ATTRIBUTION,
             "device_id": self._device.device_id,
             "battery_low": self._device.battery_low,
             "no_response": self._device.no_response,
@@ -329,19 +317,14 @@ class AbodeDevice(AbodeEntity):
         }
 
     @property
-    def unique_id(self):
-        """Return a unique ID to use for this device."""
-        return self._device.device_uuid
-
-    @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Return device registry information for this entity."""
-        return {
-            "identifiers": {(DOMAIN, self._device.device_id)},
-            "manufacturer": "Abode",
-            "name": self._device.name,
-            "device_type": self._device.type,
-        }
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.device_id)},
+            manufacturer="Abode",
+            model=self._device.type,
+            name=self._device.name,
+        )
 
     def _update_callback(self, device):
         """Update the device state."""
@@ -355,22 +338,12 @@ class AbodeAutomation(AbodeEntity):
         """Initialize for Abode automation."""
         super().__init__(data)
         self._automation = automation
+        self._attr_name = automation.name
+        self._attr_unique_id = automation.automation_id
+        self._attr_extra_state_attributes = {
+            "type": "CUE automation",
+        }
 
     def update(self):
         """Update automation state."""
         self._automation.refresh()
-
-    @property
-    def name(self):
-        """Return the name of the automation."""
-        return self._automation.name
-
-    @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        return {ATTR_ATTRIBUTION: ATTRIBUTION, "type": "CUE automation"}
-
-    @property
-    def unique_id(self):
-        """Return a unique ID to use for this automation."""
-        return self._automation.automation_id

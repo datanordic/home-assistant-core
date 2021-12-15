@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-import logging
 from typing import Any
 from unittest.mock import patch
 
@@ -23,7 +22,6 @@ from .const import API_V3_ENTRY_DATA, API_V4_ENTRY_DATA
 
 from tests.common import MockConfigEntry
 
-_LOGGER = logging.getLogger(__name__)
 CC_SENSOR_ENTITY_ID = "sensor.climacell_{}"
 
 O3 = "ozone"
@@ -182,7 +180,7 @@ async def test_v4_sensor(
     check_sensor_state(hass, PRESSURE_SURFACE_LEVEL, "997.9688")
     check_sensor_state(hass, GHI, "0.0")
     check_sensor_state(hass, CLOUD_BASE, "1.1909")
-    check_sensor_state(hass, CLOUD_COVER, "1.0")
+    check_sensor_state(hass, CLOUD_COVER, "100")
     check_sensor_state(hass, CLOUD_CEILING, "1.1909")
     check_sensor_state(hass, WIND_GUST, "5.6506")
     check_sensor_state(hass, PRECIPITATION_TYPE, "rain")
